@@ -62,6 +62,7 @@
         const AlertTriangle = (props) => <i className={`fa-solid fa-triangle-exclamation ${props.className || ''}`} style={{fontSize: props.size}} {...props}/>;
         const Activity = (props) => <i className={`fa-solid fa-chart-line ${props.className || ''}`} style={{fontSize: props.size}} {...props}/>;
         const PlusCircle = (props) => <i className={`fa-solid fa-circle-plus ${props.className || ''}`} style={{fontSize: props.size}} {...props}/>;
+        const FileImport = (props) => <i className={`fa-solid fa-file-import ${props.className || ''}`} style={{fontSize: props.size}} {...props}/>;
 
         // --- CONFIGURAÇÃO DE CORES ---
         const GRENA_COLOR = "#7b1113";
@@ -344,6 +345,7 @@
 
             const canvasRef = useRef(null);
             const exportRef = useRef(null);
+            const importFileRef = useRef(null);
 
             useEffect(() => {
                 try {
@@ -382,14 +384,61 @@
                 setFullscreenTitle(title || "Sem Título");
             };
 
-            const handleSave = () => {
+            const handleSaveAndExport = () => {
                 try {
-                    localStorage.setItem('audit_flow_data_html', JSON.stringify({ nodes, edges }));
-                    setSaveStatus("Progresso Salvo com Sucesso!");
+                    const dataObj = { nodes, edges };
+                    const dataStr = JSON.stringify(dataObj);
+                    
+                    // 1. Salvar no LocalStorage (Navegador)
+                    localStorage.setItem('audit_flow_data_html', dataStr);
+                    
+                    // 2. Gerar Arquivo de Backup (.json)
+                    const blob = new Blob([dataStr], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    
+                    // Nome do arquivo com data atual
+                    const dateFormatted = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+                    link.download = `Backup_Auditoria_${dateFormatted}.json`;
+                    
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+
+                    setSaveStatus("Progresso Salvo e Arquivo de Backup Gerado!");
                 } catch (e) {
-                    setSaveStatus("Aviso: Configurações do browser bloqueiam salvamento.");
+                    setSaveStatus("Aviso: Erro ao salvar o progresso.");
+                    console.error(e);
                 }
-                setTimeout(() => setSaveStatus(null), 2500);
+                setTimeout(() => setSaveStatus(null), 3500);
+            };
+
+            const handleImportBackup = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const parsedData = JSON.parse(event.target.result);
+                        if (parsedData.nodes && parsedData.edges) {
+                            setNodes(parsedData.nodes);
+                            setEdges(parsedData.edges);
+                            setSaveStatus("Backup importado com sucesso!");
+                        } else {
+                            alert("Arquivo inválido. Certifique-se de que é um backup gerado por esta lousa.");
+                        }
+                    } catch (error) {
+                        alert("Erro ao ler o arquivo. O formato pode estar corrompido.");
+                    }
+                    setTimeout(() => setSaveStatus(null), 3000);
+                };
+                reader.readAsText(file);
+                
+                // Reseta o input para permitir importar o mesmo arquivo novamente, se necessário
+                e.target.value = '';
             };
 
             const handleGeneratePDF = async () => {
@@ -538,43 +587,46 @@
                     </div>
                 )}
 
-                {/* GALERIA MAXIMIZADA COM NAVEGAÇÃO GRENÁ */}
+                {/* GALERIA MAXIMIZADA COM NAVEGAÇÃO GRENÁ E RESOLUÇÃO MÁXIMA */}
                 {fullscreenPhotos && (
-                    <div className="fixed inset-0 z-[5000] bg-white/95 backdrop-blur-xl flex flex-col items-center justify-center p-4">
-                    <div className="absolute top-6 w-full px-10 flex items-center justify-between">
-                        <div className="flex flex-col">
-                        <span className="text-[10px] font-black uppercase text-slate-400 opacity-60">Etapa: {String(fullscreenTitle)}</span>
-                        <span className="text-sm font-black text-[#7b1113]">Foto {photoIndex + 1} de {fullscreenPhotos.length}</span>
+                    <div className="fixed inset-0 z-[5000] bg-white/95 backdrop-blur-xl flex flex-col py-6">
+                        <div className="w-full px-10 flex items-center justify-between flex-shrink-0 z-20">
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-black uppercase text-slate-400 opacity-60">Etapa: {String(fullscreenTitle)}</span>
+                                <span className="text-sm font-black text-[#7b1113]">Foto {photoIndex + 1} de {fullscreenPhotos.length}</span>
+                            </div>
+                            <button className="bg-slate-100 hover:bg-rose-100 text-rose-500 p-3 rounded-full transition-colors shadow-md" onClick={() => setFullscreenPhotos(null)}>
+                                <X size={24} />
+                            </button>
                         </div>
-                        <button className="bg-slate-100 hover:bg-rose-100 text-rose-500 p-3 rounded-full transition-colors" onClick={() => setFullscreenPhotos(null)}>
-                        <X size={24} />
-                        </button>
-                    </div>
-                    <div className="w-full flex items-center justify-center gap-4 md:gap-12">
-                        <button 
-                        disabled={photoIndex === 0} 
-                        onClick={() => setPhotoIndex(prev => prev - 1)} 
-                        className={`p-4 rounded-full bg-white shadow-xl transition-all ${photoIndex === 0 ? 'opacity-20 pointer-events-none' : 'hover:scale-110 active:scale-95'}`}
-                        style={{ color: GRENA_COLOR }}
-                        >
-                        <ChevronLeft size={48} strokeWidth={3} />
-                        </button>
-                        <div className="relative max-w-[85vw] max-h-[75vh] flex items-center justify-center shadow-2xl rounded-2xl border-4 border-white overflow-hidden bg-slate-200">
-                        <img 
-                            src={fullscreenPhotos[photoIndex]} 
-                            alt="Evidência" 
-                            className="max-w-full max-h-full object-contain animate-in zoom-in-95 duration-500" 
-                        />
+                        
+                        <div className="flex-1 w-full flex items-center justify-center relative px-4 overflow-hidden mt-2">
+                            <button 
+                                disabled={photoIndex === 0} 
+                                onClick={() => setPhotoIndex(prev => prev - 1)} 
+                                className={`absolute left-4 md:left-10 z-10 p-4 rounded-full bg-white shadow-2xl transition-all ${photoIndex === 0 ? 'opacity-20 pointer-events-none' : 'hover:scale-110 active:scale-95'}`}
+                                style={{ color: GRENA_COLOR }}
+                            >
+                                <ChevronLeft size={48} />
+                            </button>
+                            
+                            <div className="w-full h-full flex items-center justify-center p-2 md:p-8">
+                                <img 
+                                    src={fullscreenPhotos[photoIndex]} 
+                                    alt="Evidência" 
+                                    className="max-w-full max-h-full object-contain drop-shadow-2xl animate-in zoom-in-95 duration-500 rounded-lg" 
+                                />
+                            </div>
+
+                            <button 
+                                disabled={photoIndex === fullscreenPhotos.length - 1} 
+                                onClick={() => setPhotoIndex(prev => prev + 1)} 
+                                className={`absolute right-4 md:right-10 z-10 p-4 rounded-full bg-white shadow-2xl transition-all ${photoIndex === fullscreenPhotos.length - 1 ? 'opacity-20 pointer-events-none' : 'hover:scale-110 active:scale-95'}`}
+                                style={{ color: GRENA_COLOR }}
+                            >
+                                <ChevronRight size={48} />
+                            </button>
                         </div>
-                        <button 
-                        disabled={photoIndex === fullscreenPhotos.length - 1} 
-                        onClick={() => setPhotoIndex(prev => prev + 1)} 
-                        className={`p-4 rounded-full bg-white shadow-xl transition-all ${photoIndex === fullscreenPhotos.length - 1 ? 'opacity-20 pointer-events-none' : 'hover:scale-110 active:scale-95'}`}
-                        style={{ color: GRENA_COLOR }}
-                        >
-                        <ChevronRight size={48} strokeWidth={3} />
-                        </button>
-                    </div>
                     </div>
                 )}
 
@@ -611,10 +663,19 @@
                     <button onClick={addNode} className="bg-[#7b1113] text-white px-4 py-2 rounded-xl flex items-center gap-2 font-bold text-[11px] hover:opacity-90 transition-all shadow-md active:scale-95 uppercase tracking-tighter">
                         <Plus size={14} className="mr-1" /> Nova Etapa
                     </button>
+                    
                     <div className="h-8 w-px bg-slate-200 mx-2" />
-                    <button onClick={handleSave} className="flex items-center gap-2 bg-slate-800 text-white px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-black transition-all shadow-md uppercase">
-                        <Save size={14} className="mr-1" /> Salvar
+                    
+                    {/* Botão de Importar Backup */}
+                    <input type="file" accept=".json" className="hidden" ref={importFileRef} onChange={handleImportBackup} />
+                    <button onClick={() => importFileRef.current?.click()} className="flex items-center gap-2 bg-slate-100 text-slate-600 border border-slate-300 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-slate-200 transition-all shadow-sm uppercase">
+                        <FileImport size={14} className="mr-1" /> Importar Backup
                     </button>
+
+                    <button onClick={handleSaveAndExport} className="flex items-center gap-2 bg-slate-800 text-white px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-black transition-all shadow-md uppercase">
+                        <Save size={14} className="mr-1" /> Salvar Backup
+                    </button>
+                    
                     <button onClick={handleGeneratePDF} className="flex items-center gap-2 bg-emerald-600 text-white px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-emerald-700 transition-all shadow-md uppercase">
                         <FileDown size={14} className="mr-1" /> Gerar PDF
                     </button>
