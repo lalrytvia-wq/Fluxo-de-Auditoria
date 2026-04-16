@@ -22,6 +22,15 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
+    <!-- SheetJS (Para ler Excel) -->
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+
+    <!-- Jspreadsheet CE (Planilha Interativa) -->
+    <script src="https://bossanova.uk/jspreadsheet/v4/jexcel.js"></script>
+    <link rel="stylesheet" href="https://bossanova.uk/jspreadsheet/v4/jexcel.css" type="text/css" />
+    <script src="https://jsuites.net/v4/jsuites.js"></script>
+    <link rel="stylesheet" href="https://jsuites.net/v4/jsuites.css" type="text/css" />
+
     <style>
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
@@ -29,6 +38,11 @@
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         
         .main-viewport { outline: none; }
+
+        /* Ajustes para o Jspreadsheet ficar compatível com o Tailwind */
+        .jexcel_container { font-family: inherit !important; }
+        .jexcel > thead > tr > td { background-color: #f8fafc; font-weight: bold; color: #475569; }
+        .jexcel > tbody > tr > td { color: #334155; }
     </style>
 </head>
 <body class="bg-slate-50 overflow-hidden">
@@ -38,7 +52,7 @@
     <script type="text/babel">
         const { useState, useRef, useEffect, useCallback, useMemo } = React;
 
-        // --- MAPEAMENTO DE ÍCONES (FontAwesome no lugar do Lucide) ---
+        // --- MAPEAMENTO DE ÍCONES ---
         const Plus = (props) => <i className={`fa-solid fa-plus ${props.className || ''}`} style={{fontSize: props.size}} {...props}/>;
         const Trash2 = (props) => <i className={`fa-solid fa-trash-can ${props.className || ''}`} style={{fontSize: props.size}} {...props}/>;
         const Maximize2 = (props) => <i className={`fa-solid fa-expand ${props.className || ''}`} style={{fontSize: props.size}} {...props}/>;
@@ -57,6 +71,8 @@
         const Tag = (props) => <i className={`fa-solid fa-tag ${props.className || ''}`} style={{fontSize: props.size}} {...props}/>;
         const Target = (props) => <i className={`fa-solid fa-bullseye ${props.className || ''}`} style={{fontSize: props.size}} {...props}/>;
         const FileDown = (props) => <i className={`fa-solid fa-file-pdf ${props.className || ''}`} style={{fontSize: props.size}} {...props}/>;
+        const FilePdf = (props) => <i className={`fa-solid fa-file-pdf ${props.className || ''}`} style={{fontSize: props.size}} {...props}/>;
+        const FileExcel = (props) => <i className={`fa-solid fa-file-excel ${props.className || ''}`} style={{fontSize: props.size}} {...props}/>;
         const ChevronLeft = (props) => <i className={`fa-solid fa-chevron-left ${props.className || ''}`} style={{fontSize: props.size}} {...props}/>;
         const ChevronRight = (props) => <i className={`fa-solid fa-chevron-right ${props.className || ''}`} style={{fontSize: props.size}} {...props}/>;
         const AlertTriangle = (props) => <i className={`fa-solid fa-triangle-exclamation ${props.className || ''}`} style={{fontSize: props.size}} {...props}/>;
@@ -64,7 +80,6 @@
         const PlusCircle = (props) => <i className={`fa-solid fa-circle-plus ${props.className || ''}`} style={{fontSize: props.size}} {...props}/>;
         const FileImport = (props) => <i className={`fa-solid fa-file-import ${props.className || ''}`} style={{fontSize: props.size}} {...props}/>;
 
-        // --- CONFIGURAÇÃO DE CORES ---
         const GRENA_COLOR = "#7b1113";
 
         const analyzeRisk = (data) => {
@@ -78,7 +93,173 @@
             return 'Baixo';
         };
 
-        // --- COMPONENTE DO BLOCO (ETAPA) ---
+        // --- SUB-COMPONENTE: CAMPO CUSTOMIZADO ---
+        // Isolado para lidar com seus próprios inputs de arquivo de forma segura
+        const CustomFieldItem = ({ 
+            nodeId, 
+            nodeTitle, 
+            field, 
+            updateCustomField, 
+            removeCustomField, 
+            onOpenFullscreenText,
+            onOpenFullscreenPhoto,
+            onOpenFullscreenPdf,
+            onOpenFullscreenExcel
+        }) => {
+            const photoRef = useRef(null);
+            const pdfRef = useRef(null);
+            const excelRef = useRef(null);
+
+            const handlePhotoUpload = (e) => {
+                const files = Array.from(e.target.files);
+                files.forEach(file => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        const currentPhotos = field.photos || [];
+                        updateCustomField(nodeId, field.id, 'photos', [...currentPhotos, reader.result]);
+                    };
+                    reader.readAsDataURL(file);
+                });
+                e.target.value = '';
+            };
+
+            const handlePdfUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const currentPdfs = field.pdfs || [];
+                    const newPdf = { id: Date.now(), name: file.name, data: reader.result };
+                    updateCustomField(nodeId, field.id, 'pdfs', [...currentPdfs, newPdf]);
+                };
+                reader.readAsDataURL(file);
+                e.target.value = '';
+            };
+
+            const handleExcelUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    const data = new Uint8Array(evt.target.result);
+                    const workbook = window.XLSX.read(data, {type: 'array'});
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const json = window.XLSX.utils.sheet_to_json(worksheet, {header: 1});
+                    
+                    const currentExcels = field.excels || [];
+                    const newExcel = { id: Date.now(), name: file.name, data: json };
+                    updateCustomField(nodeId, field.id, 'excels', [...currentExcels, newExcel]);
+                };
+                reader.readAsArrayBuffer(file);
+                e.target.value = '';
+            };
+
+            const removeAttachment = (type, index) => {
+                const currentArr = [...(field[type] || [])];
+                currentArr.splice(index, 1);
+                updateCustomField(nodeId, field.id, type, currentArr);
+            };
+
+            return (
+                <div className="space-y-2 p-3 bg-white border border-slate-200 shadow-sm rounded-xl relative group/field animate-in slide-in-from-top-2 duration-300">
+                    <div className="flex items-center justify-between">
+                        <input 
+                            value={field.label}
+                            onChange={(e) => updateCustomField(nodeId, field.id, 'label', e.target.value)}
+                            onMouseDown={e => e.stopPropagation()}
+                            className="text-[10px] font-black text-[#7b1113] uppercase tracking-wider bg-transparent outline-none w-full border-b border-transparent focus:border-[#7b1113]/30 transition-colors"
+                            placeholder="TÍTULO DO CAMPO"
+                        />
+                        <div className="flex items-center gap-2">
+                            <button onMouseDown={e => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onOpenFullscreenText(field.value, field.label, nodeTitle); }} className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600 transition-colors" title="Maximizar Texto">
+                                <Expand size={12} />
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); removeCustomField(nodeId, field.id); }} className="opacity-0 group-hover/field:opacity-100 p-1 text-rose-400 hover:text-rose-600 transition-opacity" title="Excluir Campo">
+                                <Trash2 size={12} />
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <textarea 
+                        value={field.value}
+                        onChange={(e) => updateCustomField(nodeId, field.id, 'value', e.target.value)}
+                        onMouseDown={e => e.stopPropagation()}
+                        className="w-full bg-slate-50 border border-slate-200 text-xs p-2 rounded-lg outline-none resize-none min-h-[50px] focus:ring-1 focus:ring-[#7b1113]/20 transition-all text-slate-700"
+                        placeholder="Insira as anotações..."
+                        onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
+                    />
+
+                    {/* Barra de Ferramentas de Anexo do Campo */}
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                        <div className="flex gap-2">
+                            <button onMouseDown={e => e.stopPropagation()} onClick={() => photoRef.current.click()} className="text-slate-400 hover:text-blue-600 transition-colors" title="Anexar Foto">
+                                <Camera size={14} />
+                            </button>
+                            <button onMouseDown={e => e.stopPropagation()} onClick={() => pdfRef.current.click()} className="text-slate-400 hover:text-rose-600 transition-colors" title="Anexar PDF">
+                                <FilePdf size={14} />
+                            </button>
+                            <button onMouseDown={e => e.stopPropagation()} onClick={() => excelRef.current.click()} className="text-slate-400 hover:text-emerald-600 transition-colors" title="Anexar Planilha Excel">
+                                <FileExcel size={14} />
+                            </button>
+                        </div>
+                        <div className="text-[8px] font-bold text-slate-300 uppercase tracking-widest">
+                            Anexos Individuais
+                        </div>
+                    </div>
+
+                    {/* Inputs Invisíveis */}
+                    <input type="file" accept="image/*" multiple ref={photoRef} onChange={handlePhotoUpload} className="hidden" />
+                    <input type="file" accept="application/pdf" ref={pdfRef} onChange={handlePdfUpload} className="hidden" />
+                    <input type="file" accept=".xlsx, .xls, .csv" ref={excelRef} onChange={handleExcelUpload} className="hidden" />
+
+                    {/* Renderização dos Anexos do Campo */}
+                    <div className="space-y-2 mt-2">
+                        {/* Fotos */}
+                        {field.photos && field.photos.length > 0 && (
+                            <div className="grid grid-cols-4 gap-1">
+                                {field.photos.map((ph, idx) => (
+                                    <div key={idx} className="relative group aspect-square rounded border border-slate-200 cursor-pointer overflow-hidden" onClick={(e) => { e.stopPropagation(); onOpenFullscreenPhoto(field.photos, idx, `${nodeTitle} - ${field.label}`); }}>
+                                        <img src={ph} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+                                        <button onClick={(e) => { e.stopPropagation(); removeAttachment('photos', idx); }} className="absolute top-0 right-0 bg-black/60 text-white p-0.5 opacity-0 group-hover:opacity-100"><X size={8} /></button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {/* PDFs */}
+                        {field.pdfs && field.pdfs.length > 0 && (
+                            <div className="flex flex-col gap-1">
+                                {field.pdfs.map((pdf, idx) => (
+                                    <div key={idx} className="flex items-center justify-between bg-rose-50 border border-rose-100 p-1.5 rounded cursor-pointer hover:bg-rose-100 transition-colors" onClick={(e) => { e.stopPropagation(); onOpenFullscreenPdf(pdf, `${nodeTitle} - ${field.label}`); }}>
+                                        <div className="flex items-center gap-2 overflow-hidden">
+                                            <FilePdf size={12} className="text-rose-600 flex-shrink-0" />
+                                            <span className="text-[10px] font-bold text-rose-800 truncate">{pdf.name}</span>
+                                        </div>
+                                        <button onClick={(e) => { e.stopPropagation(); removeAttachment('pdfs', idx); }} className="text-rose-400 hover:text-rose-700 p-1"><X size={10}/></button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {/* Excels */}
+                        {field.excels && field.excels.length > 0 && (
+                            <div className="flex flex-col gap-1">
+                                {field.excels.map((ex, idx) => (
+                                    <div key={idx} className="flex items-center justify-between bg-emerald-50 border border-emerald-100 p-1.5 rounded cursor-pointer hover:bg-emerald-100 transition-colors" onClick={(e) => { e.stopPropagation(); onOpenFullscreenExcel(ex, nodeId, field.id, `${nodeTitle} - ${field.label}`); }}>
+                                        <div className="flex items-center gap-2 overflow-hidden">
+                                            <FileExcel size={12} className="text-emerald-600 flex-shrink-0" />
+                                            <span className="text-[10px] font-bold text-emerald-800 truncate">{ex.name}</span>
+                                        </div>
+                                        <button onClick={(e) => { e.stopPropagation(); removeAttachment('excels', idx); }} className="text-emerald-400 hover:text-emerald-700 p-1"><X size={10}/></button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // --- COMPONENTE DO BLOCO (ETAPA PRINCIPAL) ---
         const NodeItem = ({ 
             node, 
             updateNodeData, 
@@ -89,6 +270,8 @@
             handleMouseDown, 
             onOpenFullscreenPhoto,
             onOpenFullscreenText,
+            onOpenFullscreenPdf,
+            onOpenFullscreenExcel,
             addCustomField,
             updateCustomField,
             removeCustomField
@@ -100,6 +283,7 @@
                            data.risk === 'Médio' ? { border: 'border-amber-500', bg: 'bg-amber-50', accent: 'bg-amber-500', text: 'text-amber-800' } :
                            { border: 'border-emerald-500', bg: 'bg-emerald-50', accent: 'bg-emerald-600', text: 'text-emerald-800' };
 
+            // Mantido o upload global apenas para o nível "nó" caso necessário, mas o foco é nos campos.
             const handleFileChange = (e) => {
                 const files = Array.from(e.target.files);
                 files.forEach(file => {
@@ -110,12 +294,7 @@
                     };
                     reader.readAsDataURL(file);
                 });
-            };
-
-            const removePhoto = (idx) => {
-                const currentPhotos = [...(data.photos || [])];
-                currentPhotos.splice(idx, 1);
-                updateNodeData(id, 'photos', currentPhotos);
+                e.target.value = '';
             };
 
             const zIndex = draggingNodeId === id ? 2000 : (activeNodeId === id ? 1500 : 10);
@@ -123,13 +302,7 @@
             return (
                 <div 
                     className="absolute transition-all duration-300 ease-in-out"
-                    style={{ 
-                        left: x, 
-                        top: y, 
-                        width: expanded ? '350px' : '200px', 
-                        zIndex: zIndex,
-                        transform: draggingNodeId === id ? 'scale(1.02)' : 'scale(1)'
-                    }}
+                    style={{ left: x, top: y, width: expanded ? '350px' : '200px', zIndex: zIndex, transform: draggingNodeId === id ? 'scale(1.02)' : 'scale(1)' }}
                     onMouseDown={(e) => handleMouseDown(e, id)}
                 >
                     <div className="mb-2 flex justify-center">
@@ -159,18 +332,6 @@
                                 />
                             </div>
                             <div className="flex items-center gap-2 ml-2">
-                                {expanded && (
-                                <div className="relative">
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
-                                        className="p-1 rounded-md transition-all text-slate-400 hover:bg-slate-100 hover:text-[#7b1113]"
-                                        title="Anexar Fotos"
-                                    >
-                                        <Camera size={14} />
-                                    </button>
-                                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" multiple onChange={handleFileChange} />
-                                </div>
-                                )}
                                 <button onClick={(e) => { e.stopPropagation(); toggleExpand(id); }} className="p-1 hover:bg-slate-100 rounded-md transition-colors text-slate-500">
                                     {expanded ? <ChevronUp size={14}/> : <Maximize2 size={12}/>}
                                 </button>
@@ -250,34 +411,21 @@
                                     />
                                 </div>
 
-                                {/* NOVOS CAMPOS CUSTOMIZADOS (+) */}
+                                {/* LISTA DE CAMPOS CUSTOMIZADOS (Dinâmicos com anexos próprios) */}
                                 <div className="space-y-4 pt-2 border-t border-slate-200/50">
                                     {data.customFields?.map((field) => (
-                                        <div key={field.id} className="space-y-1 group/field relative animate-in slide-in-from-top-2 duration-300">
-                                            <div className="flex items-center justify-between">
-                                                <input 
-                                                    value={field.label}
-                                                    onChange={(e) => updateCustomField(id, field.id, 'label', e.target.value)}
-                                                    onMouseDown={e => e.stopPropagation()}
-                                                    className="text-[9px] font-black text-slate-500 uppercase tracking-wider bg-transparent outline-none focus:text-[#7b1113] border-b border-transparent focus:border-[#7b1113]/20 w-full transition-all"
-                                                    placeholder="Título do campo (ex: Recomendação)"
-                                                />
-                                                <button 
-                                                    onClick={(e) => { e.stopPropagation(); removeCustomField(id, field.id); }}
-                                                    className="opacity-0 group-hover/field:opacity-100 p-1 text-rose-500 hover:text-rose-700 transition-opacity"
-                                                >
-                                                    <Trash2 size={12} />
-                                                </button>
-                                            </div>
-                                            <textarea 
-                                                value={field.value}
-                                                onChange={(e) => updateCustomField(id, field.id, 'value', e.target.value)}
-                                                onMouseDown={e => e.stopPropagation()}
-                                                className="w-full bg-white border border-slate-300 shadow-sm text-xs p-2 rounded-lg outline-none resize-none min-h-[60px] focus:ring-2 focus:ring-[#7b1113]/20 focus:border-[#7b1113] transition-all text-slate-700"
-                                                placeholder="Conteúdo informativo..."
-                                                onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
-                                            />
-                                        </div>
+                                        <CustomFieldItem 
+                                            key={field.id}
+                                            nodeId={id}
+                                            nodeTitle={data.title}
+                                            field={field}
+                                            updateCustomField={updateCustomField}
+                                            removeCustomField={removeCustomField}
+                                            onOpenFullscreenText={onOpenFullscreenText}
+                                            onOpenFullscreenPhoto={onOpenFullscreenPhoto}
+                                            onOpenFullscreenPdf={onOpenFullscreenPdf}
+                                            onOpenFullscreenExcel={onOpenFullscreenExcel}
+                                        />
                                     ))}
                                     
                                     <button 
@@ -289,24 +437,6 @@
                                     </button>
                                 </div>
                                 
-                                {data.photos && data.photos.length > 0 && (
-                                    <div className="space-y-2 pt-2 border-t border-slate-200/50">
-                                        <label className="text-[9px] font-black text-blue-600 uppercase tracking-wider">Evidências ({data.photos.length})</label>
-                                        <div className="grid grid-cols-3 gap-2 pb-4">
-                                            {data.photos.map((ph, idx) => (
-                                                <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border border-slate-200 cursor-pointer" onClick={(e) => { e.stopPropagation(); onOpenFullscreenPhoto(data.photos, idx, data.title); }}>
-                                                    <img src={ph} alt="Evidência" className="w-full h-full object-cover transition-transform group-hover:scale-110" />
-                                                    <button 
-                                                        onClick={(e) => { e.stopPropagation(); removePhoto(idx); }}
-                                                        className="absolute top-1 right-1 bg-black/50 text-white p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                                                    >
-                                                        <X size={10} />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
                             </div>
                             <div className="px-3 py-2 flex items-center justify-between text-[10px] text-slate-400 font-bold bg-white/20 border-t border-slate-200">
                                 <span>ETAPA AUDITADA</span>
@@ -316,7 +446,7 @@
 
                         {!expanded && (
                         <div className={`px-3 py-1.5 text-[9px] font-black uppercase text-center rounded-b-2xl opacity-90 ${colors.text} flex items-center justify-center gap-2 border-t border-white/20`}>
-                            {data.photos?.length > 0 && <Camera size={10} className="text-[#7b1113] animate-pulse" />}
+                            {data.customFields?.some(f => f.photos?.length > 0) && <Camera size={10} className="text-[#7b1113] animate-pulse" />}
                             {data.risk} Risco
                         </div>
                         )}
@@ -337,11 +467,17 @@
             const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
             const [saveStatus, setSaveStatus] = useState(null);
             
+            // Estados para visualizadores Maximizado
             const [fullscreenPhotos, setFullscreenPhotos] = useState(null);
             const [photoIndex, setPhotoIndex] = useState(0);
-            const [fullscreenTitle, setFullscreenTitle] = useState("");
+            
             const [fullscreenText, setFullscreenText] = useState(null);
             const [fullscreenTextLabel, setFullscreenTextLabel] = useState("");
+            const [fullscreenTitle, setFullscreenTitle] = useState("");
+
+            const [fullscreenPdf, setFullscreenPdf] = useState(null); // { name, data }
+            const [fullscreenExcel, setFullscreenExcel] = useState(null); // { name, data, nodeId, fieldId }
+            const jexcelContainerRef = useRef(null);
 
             const canvasRef = useRef(null);
             const exportRef = useRef(null);
@@ -349,7 +485,7 @@
 
             useEffect(() => {
                 try {
-                    const saved = localStorage.getItem('audit_flow_data_html');
+                    const saved = localStorage.getItem('audit_flow_data_html_v2');
                     if (saved) {
                         const parsed = JSON.parse(saved);
                         setNodes(parsed.nodes || []);
@@ -372,6 +508,54 @@
                 }]);
             }, []);
 
+            // Gerenciador da Planilha Excel Interativa quando aberta
+            useEffect(() => {
+                if (fullscreenExcel && jexcelContainerRef.current) {
+                    jexcelContainerRef.current.innerHTML = '';
+                    
+                    const sheetData = fullscreenExcel.data && fullscreenExcel.data.length > 0 
+                                      ? fullscreenExcel.data 
+                                      : [['', '', '', ''], ['', '', '', ''], ['', '', '', '']];
+
+                    window.jexcel(jexcelContainerRef.current, {
+                        data: sheetData,
+                        minDimensions: [10, 15],
+                        defaultColWidth: 120,
+                        tableOverflow: true,
+                        tableWidth: "100%",
+                        tableHeight: "100%",
+                        allowInsertColumn: true,
+                        allowInsertRow: true,
+                        allowDeleteColumn: true,
+                        allowDeleteRow: true,
+                        wordWrap: true,
+                    });
+                }
+            }, [fullscreenExcel]);
+
+            const handleCloseExcel = () => {
+                if (jexcelContainerRef.current && jexcelContainerRef.current.jexcel) {
+                    const updatedData = jexcelContainerRef.current.jexcel.getData();
+                    
+                    setNodes(prev => prev.map(n => {
+                        if (n.id === fullscreenExcel.nodeId) {
+                            const customFields = (n.data.customFields || []).map(f => {
+                                if (f.id === fullscreenExcel.fieldId) {
+                                    const updatedExcels = (f.excels || []).map(ex => 
+                                        ex.id === fullscreenExcel.excelId ? { ...ex, data: updatedData } : ex
+                                    );
+                                    return { ...f, excels: updatedExcels };
+                                }
+                                return f;
+                            });
+                            return { ...n, data: { ...n.data, customFields } };
+                        }
+                        return n;
+                    }));
+                }
+                setFullscreenExcel(null);
+            };
+
             const riskMetrics = useMemo(() => {
                 const total = nodes.length;
                 const low = nodes.filter(n => n.data.risk === 'Baixo').length;
@@ -389,16 +573,13 @@
                     const dataObj = { nodes, edges };
                     const dataStr = JSON.stringify(dataObj);
                     
-                    // 1. Salvar no LocalStorage (Navegador)
-                    localStorage.setItem('audit_flow_data_html', dataStr);
+                    localStorage.setItem('audit_flow_data_html_v2', dataStr);
                     
-                    // 2. Gerar Arquivo de Backup (.json)
                     const blob = new Blob([dataStr], { type: "application/json" });
                     const url = URL.createObjectURL(blob);
                     const link = document.createElement('a');
                     link.href = url;
                     
-                    // Nome do arquivo com data atual
                     const dateFormatted = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
                     link.download = `Backup_Auditoria_${dateFormatted}.json`;
                     
@@ -436,8 +617,6 @@
                     setTimeout(() => setSaveStatus(null), 3000);
                 };
                 reader.readAsText(file);
-                
-                // Reseta o input para permitir importar o mesmo arquivo novamente, se necessário
                 e.target.value = '';
             };
 
@@ -457,7 +636,7 @@
             };
 
             const handleMouseDown = useCallback((e, nodeId = null) => {
-                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.closest('button')) {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.closest('button') || fullscreenExcel) {
                     if (nodeId) setActiveNodeId(nodeId);
                     return;
                 }
@@ -469,7 +648,7 @@
                     setIsDraggingCanvas(true);
                     setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
                 }
-            }, [nodes, offset, zoom]);
+            }, [nodes, offset, zoom, fullscreenExcel]);
 
             const handleMouseMove = useCallback((e) => {
                 if (draggingNodeId) {
@@ -501,7 +680,7 @@
                         ...n,
                         data: {
                             ...n.data,
-                            customFields: [...customFields, { id: Date.now(), label: 'NOVO CAMPO', value: '' }]
+                            customFields: [...customFields, { id: Date.now(), label: 'NOVO CAMPO', value: '', photos: [], pdfs: [], excels: [] }]
                         }
                         };
                     }
@@ -587,12 +766,12 @@
                     </div>
                 )}
 
-                {/* GALERIA MAXIMIZADA COM NAVEGAÇÃO GRENÁ E RESOLUÇÃO MÁXIMA */}
+                {/* GALERIA MAXIMIZADA DE FOTOS */}
                 {fullscreenPhotos && (
                     <div className="fixed inset-0 z-[5000] bg-white/95 backdrop-blur-xl flex flex-col py-6">
                         <div className="w-full px-10 flex items-center justify-between flex-shrink-0 z-20">
                             <div className="flex flex-col">
-                                <span className="text-[10px] font-black uppercase text-slate-400 opacity-60">Etapa: {String(fullscreenTitle)}</span>
+                                <span className="text-[10px] font-black uppercase text-slate-400 opacity-60">Campo: {String(fullscreenTitle)}</span>
                                 <span className="text-sm font-black text-[#7b1113]">Foto {photoIndex + 1} de {fullscreenPhotos.length}</span>
                             </div>
                             <button className="bg-slate-100 hover:bg-rose-100 text-rose-500 p-3 rounded-full transition-colors shadow-md" onClick={() => setFullscreenPhotos(null)}>
@@ -630,7 +809,7 @@
                     </div>
                 )}
 
-                {/* TEXTO EXPANDIDO */}
+                {/* TEXTO EXPANDIDO MAXIMIZADO */}
                 {fullscreenText !== null && (
                     <div className="fixed inset-0 z-[5000] bg-[#7b1113]/90 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-300" onClick={() => setFullscreenText(null)}>
                     <div className="bg-white w-full max-w-4xl max-h-[80vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
@@ -645,6 +824,42 @@
                         <p className="text-lg text-slate-700 leading-relaxed whitespace-pre-wrap font-medium">{String(fullscreenText)}</p>
                         </div>
                     </div>
+                    </div>
+                )}
+
+                {/* PDF MAXIMIZADO */}
+                {fullscreenPdf && (
+                    <div className="fixed inset-0 z-[5000] bg-slate-900/95 backdrop-blur-sm flex flex-col p-6 animate-in fade-in duration-300">
+                        <div className="flex items-center justify-between mb-4 flex-shrink-0 bg-white/10 p-4 rounded-2xl border border-white/20">
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-black text-rose-300 uppercase tracking-[0.2em]">{String(fullscreenPdf.label)}</span>
+                                <span className="text-lg font-bold text-white flex items-center gap-2"><FilePdf size={18}/> {String(fullscreenPdf.pdf.name)}</span>
+                            </div>
+                            <button onClick={() => setFullscreenPdf(null)} className="p-3 bg-white/10 hover:bg-rose-500 text-white rounded-full transition-colors"><X size={20} /></button>
+                        </div>
+                        <div className="flex-1 w-full bg-white rounded-2xl overflow-hidden shadow-2xl">
+                            <iframe src={fullscreenPdf.pdf.data} className="w-full h-full border-none"></iframe>
+                        </div>
+                    </div>
+                )}
+
+                {/* EXCEL MAXIMIZADO (Jspreadsheet) */}
+                {fullscreenExcel && (
+                    <div className="fixed inset-0 z-[5000] bg-slate-900/95 backdrop-blur-sm flex flex-col p-6 animate-in fade-in duration-300">
+                        <div className="flex items-center justify-between mb-4 flex-shrink-0 bg-white/10 p-4 rounded-2xl border border-white/20">
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-black text-emerald-300 uppercase tracking-[0.2em]">{String(fullscreenExcel.label)}</span>
+                                <span className="text-lg font-bold text-white flex items-center gap-2"><FileExcel size={18}/> {String(fullscreenExcel.name)}</span>
+                            </div>
+                            <div className="flex gap-4">
+                                <span className="text-[10px] font-bold text-emerald-200 uppercase self-center bg-emerald-900/50 px-3 py-1 rounded-full border border-emerald-500/50">Planilha Interativa e Editável</span>
+                                <button onClick={handleCloseExcel} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold flex items-center gap-2 transition-colors shadow-lg"><Save size={14}/> Salvar & Fechar</button>
+                            </div>
+                        </div>
+                        <div className="flex-1 w-full bg-white rounded-2xl overflow-auto shadow-2xl p-4">
+                            {/* Onde a planilha interativa será renderizada */}
+                            <div ref={jexcelContainerRef} className="w-full h-full"></div>
+                        </div>
                     </div>
                 )}
 
@@ -666,7 +881,6 @@
                     
                     <div className="h-8 w-px bg-slate-200 mx-2" />
                     
-                    {/* Botão de Importar Backup */}
                     <input type="file" accept=".json" className="hidden" ref={importFileRef} onChange={handleImportBackup} />
                     <button onClick={() => importFileRef.current?.click()} className="flex items-center gap-2 bg-slate-100 text-slate-600 border border-slate-300 px-3 py-2 rounded-xl text-[10px] font-bold hover:bg-slate-200 transition-all shadow-sm uppercase">
                         <FileImport size={14} className="mr-1" /> Importar Backup
@@ -728,6 +942,8 @@
                         handleMouseDown={handleMouseDown} 
                         onOpenFullscreenPhoto={(photos, idx, title) => { setFullscreenPhotos(photos); setPhotoIndex(idx); setFullscreenTitle(title); }} 
                         onOpenFullscreenText={openFullscreenText}
+                        onOpenFullscreenPdf={(pdf, label) => setFullscreenPdf({ pdf, label })}
+                        onOpenFullscreenExcel={(excel, nId, fId, label) => setFullscreenExcel({ ...excel, nodeId: nId, fieldId: fId, label })}
                         addCustomField={addCustomField}
                         updateCustomField={updateCustomField}
                         removeCustomField={removeCustomField}
