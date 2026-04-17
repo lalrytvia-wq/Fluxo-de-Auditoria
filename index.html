@@ -119,6 +119,53 @@
             return 'Baixo';
         };
 
+        const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB limite
+
+        // --- SUB-COMPONENTE: GALERIA DE ANEXOS ---
+        const AttachmentGallery = ({ photos, pdfs, excels, onRemove, onOpenPhoto, onOpenPdf, onOpenExcel }) => {
+            if ((!photos || photos.length === 0) && (!pdfs || pdfs.length === 0) && (!excels || excels.length === 0)) return null;
+            return (
+                <div className="space-y-2 mt-2 pt-2 border-t border-slate-100">
+                    {photos && photos.length > 0 && (
+                        <div className="grid grid-cols-4 gap-1">
+                            {photos.map((ph, idx) => (
+                                <div key={`ph-${idx}`} className="relative group aspect-square rounded border border-slate-200 cursor-pointer overflow-hidden" onClick={(e) => { e.stopPropagation(); onOpenPhoto(idx); }}>
+                                    <img src={ph} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+                                    <button onClick={(e) => { e.stopPropagation(); onRemove('photos', idx); }} className="absolute top-0 right-0 bg-black/60 text-white p-0.5 opacity-0 group-hover:opacity-100"><X size={8} /></button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    {pdfs && pdfs.length > 0 && (
+                        <div className="flex flex-col gap-1">
+                            {pdfs.map((pdf, idx) => (
+                                <div key={`pdf-${idx}`} className="flex items-center justify-between bg-rose-50 border border-rose-100 p-1.5 rounded cursor-pointer hover:bg-rose-100 transition-colors" onClick={(e) => { e.stopPropagation(); onOpenPdf(idx); }}>
+                                    <div className="flex items-center gap-2 overflow-hidden">
+                                        <FilePdf size={12} className="text-rose-600 flex-shrink-0" />
+                                        <span className="text-[10px] font-bold text-rose-800 truncate">{pdf.name}</span>
+                                    </div>
+                                    <button onClick={(e) => { e.stopPropagation(); onRemove('pdfs', idx); }} className="text-rose-400 hover:text-rose-700 p-1"><X size={10}/></button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    {excels && excels.length > 0 && (
+                        <div className="flex flex-col gap-1">
+                            {excels.map((ex, idx) => (
+                                <div key={`ex-${idx}`} className="flex items-center justify-between bg-emerald-50 border border-emerald-100 p-1.5 rounded cursor-pointer hover:bg-emerald-100 transition-colors" onClick={(e) => { e.stopPropagation(); onOpenExcel(ex); }}>
+                                    <div className="flex items-center gap-2 overflow-hidden">
+                                        <FileExcel size={12} className="text-emerald-600 flex-shrink-0" />
+                                        <span className="text-[10px] font-bold text-emerald-800 truncate">{ex.name}</span>
+                                    </div>
+                                    <button onClick={(e) => { e.stopPropagation(); onRemove('excels', idx); }} className="text-emerald-400 hover:text-emerald-700 p-1"><X size={10}/></button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
         // --- SUB-COMPONENTE: CAMPO CUSTOMIZADO ---
         const CustomFieldItem = ({ 
             nodeId, 
@@ -134,9 +181,6 @@
             const photoRef = useRef(null);
             const pdfRef = useRef(null);
             const excelRef = useRef(null);
-
-            // LIMITE DE TAMANHO (2MB) - Impede que arquivos imensos quebrem a memória do navegador
-            const MAX_FILE_SIZE = 2 * 1024 * 1024;
 
             const handlePhotoUpload = (e) => {
                 const files = Array.from(e.target.files);
@@ -259,7 +303,7 @@
                             </button>
                         </div>
                         <div className="text-[8px] font-bold text-slate-300 uppercase tracking-widest">
-                            Anexos Individuais
+                            Anexos Específicos
                         </div>
                     </div>
 
@@ -267,44 +311,15 @@
                     <input type="file" accept="application/pdf" ref={pdfRef} onChange={handlePdfUpload} className="hidden" />
                     <input type="file" accept=".xlsx, .xls, .csv" ref={excelRef} onChange={handleExcelUpload} className="hidden" />
 
-                    <div className="space-y-2 mt-2">
-                        {field.photos && field.photos.length > 0 && (
-                            <div className="grid grid-cols-4 gap-1">
-                                {field.photos.map((ph, idx) => (
-                                    <div key={idx} className="relative group aspect-square rounded border border-slate-200 cursor-pointer overflow-hidden" onClick={(e) => { e.stopPropagation(); onOpenFullscreenPhoto(field.photos, idx, `${nodeTitle} - ${field.label}`); }}>
-                                        <img src={ph} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
-                                        <button onClick={(e) => { e.stopPropagation(); removeAttachment('photos', idx); }} className="absolute top-0 right-0 bg-black/60 text-white p-0.5 opacity-0 group-hover:opacity-100"><X size={8} /></button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        {field.pdfs && field.pdfs.length > 0 && (
-                            <div className="flex flex-col gap-1">
-                                {field.pdfs.map((pdf, idx) => (
-                                    <div key={idx} className="flex items-center justify-between bg-rose-50 border border-rose-100 p-1.5 rounded cursor-pointer hover:bg-rose-100 transition-colors" onClick={(e) => { e.stopPropagation(); onOpenFullscreenPdf(pdf, `${nodeTitle} - ${field.label}`); }}>
-                                        <div className="flex items-center gap-2 overflow-hidden">
-                                            <FilePdf size={12} className="text-rose-600 flex-shrink-0" />
-                                            <span className="text-[10px] font-bold text-rose-800 truncate">{pdf.name}</span>
-                                        </div>
-                                        <button onClick={(e) => { e.stopPropagation(); removeAttachment('pdfs', idx); }} className="text-rose-400 hover:text-rose-700 p-1"><X size={10}/></button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        {field.excels && field.excels.length > 0 && (
-                            <div className="flex flex-col gap-1">
-                                {field.excels.map((ex, idx) => (
-                                    <div key={idx} className="flex items-center justify-between bg-emerald-50 border border-emerald-100 p-1.5 rounded cursor-pointer hover:bg-emerald-100 transition-colors" onClick={(e) => { e.stopPropagation(); onOpenFullscreenExcel(ex, nodeId, field.id, `${nodeTitle} - ${field.label}`); }}>
-                                        <div className="flex items-center gap-2 overflow-hidden">
-                                            <FileExcel size={12} className="text-emerald-600 flex-shrink-0" />
-                                            <span className="text-[10px] font-bold text-emerald-800 truncate">{ex.name}</span>
-                                        </div>
-                                        <button onClick={(e) => { e.stopPropagation(); removeAttachment('excels', idx); }} className="text-emerald-400 hover:text-emerald-700 p-1"><X size={10}/></button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                    <AttachmentGallery 
+                        photos={field.photos}
+                        pdfs={field.pdfs}
+                        excels={field.excels}
+                        onRemove={removeAttachment}
+                        onOpenPhoto={(idx) => onOpenFullscreenPhoto(field.photos, idx, `${nodeTitle} - ${field.label}`)}
+                        onOpenPdf={(idx) => onOpenFullscreenPdf(field.pdfs, idx, `${nodeTitle} - ${field.label}`)}
+                        onOpenExcel={(ex) => onOpenFullscreenExcel(ex, nodeId, field.id, `${nodeTitle} - ${field.label}`)}
+                    />
                 </div>
             );
         };
@@ -328,8 +343,55 @@
             removeCustomField
         }) => {
             const { id, data, expanded, x, y } = node;
-            const fileInputRef = useRef(null);
             
+            // Refs para Mapeamento
+            const mappingPhotoRef = useRef(null);
+            const mappingPdfRef = useRef(null);
+            const mappingExcelRef = useRef(null);
+            
+            // Refs para Fragilidades
+            const weaknessPhotoRef = useRef(null);
+            const weaknessPdfRef = useRef(null);
+            const weaknessExcelRef = useRef(null);
+
+            const handleAttachment = (e, fieldName, type) => {
+                const files = Array.from(e.target.files);
+                files.forEach(file => {
+                    if (file.size > MAX_FILE_SIZE) {
+                        alert(`O arquivo "${file.name}" excede 2MB. Use arquivos menores para evitar lentidão e falhas no salvamento.`);
+                        return;
+                    }
+                    const reader = new FileReader();
+                    if (type === 'photo' || type === 'pdf') {
+                        reader.onloadend = () => {
+                            const current = data[fieldName] || [];
+                            const newItem = type === 'photo' ? reader.result : { id: Date.now(), name: file.name, data: reader.result };
+                            updateNodeData(id, fieldName, [...current, newItem]);
+                        };
+                        reader.readAsDataURL(file);
+                    } else if (type === 'excel') {
+                        reader.onload = (evt) => {
+                            try {
+                                const arrData = new Uint8Array(evt.target.result);
+                                if (!window.XLSX) { alert("A biblioteca Excel ainda está carregando."); return; }
+                                const workbook = window.XLSX.read(arrData, {type: 'array'});
+                                const rawJson = window.XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {header: 1, defval: ''});
+                                const current = data[fieldName] || [];
+                                updateNodeData(id, fieldName, [...current, { id: Date.now(), name: file.name, data: rawJson }]);
+                            } catch(err) { alert("Falha ao ler o Excel."); }
+                        };
+                        reader.readAsArrayBuffer(file);
+                    }
+                });
+                e.target.value = '';
+            };
+
+            const handleRemoveAttachment = (fieldName, index) => {
+                const currentArr = [...(data[fieldName] || [])];
+                currentArr.splice(index, 1);
+                updateNodeData(id, fieldName, currentArr);
+            };
+
             const isEndNode = node.type === 'end';
             
             const colors = isEndNode ? { border: 'border-slate-800', bg: 'bg-slate-50', accent: 'bg-slate-800', text: 'text-slate-800' } :
@@ -418,8 +480,9 @@
                                     </div>
                                 </div>
 
-                                <div className="space-y-1">
-                                    <div className="flex items-center justify-between">
+                                {/* SEÇÃO: MAPEAMENTO */}
+                                <div className="space-y-1 bg-white p-2 rounded-lg border border-slate-300 shadow-sm">
+                                    <div className="flex items-center justify-between mb-1">
                                         <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Mapeamento</label>
                                         <button onMouseDown={e => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onOpenFullscreenText(data.description, 'Mapeamento', data.title); }} className="p-1 hover:bg-slate-200 rounded text-slate-500">
                                             <Expand size={12} />
@@ -429,9 +492,29 @@
                                         value={data.description || ''} 
                                         onChange={(e) => updateNodeData(id, 'description', e.target.value)} 
                                         onMouseDown={e => e.stopPropagation()} 
-                                        className="w-full bg-white border border-slate-300 shadow-sm text-xs p-2 rounded-lg outline-none resize-none min-h-[80px] text-slate-700 focus:ring-2 focus:ring-[#7b1113]/20 focus:border-[#7b1113] transition-all" 
+                                        className="w-full bg-slate-50 border border-slate-200 text-xs p-2 rounded outline-none resize-none min-h-[60px] text-slate-700 focus:ring-1 focus:ring-[#7b1113]/30 transition-all" 
                                         placeholder="Descreva o fluxo..." 
                                         onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
+                                    />
+                                    
+                                    {/* Botões de Anexo (Mapeamento) */}
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <button onMouseDown={e => e.stopPropagation()} onClick={() => mappingPhotoRef.current.click()} className="text-slate-400 hover:text-blue-600 transition-colors" title="Anexar Foto"><Camera size={12} /></button>
+                                        <button onMouseDown={e => e.stopPropagation()} onClick={() => mappingPdfRef.current.click()} className="text-slate-400 hover:text-rose-600 transition-colors" title="Anexar PDF"><FilePdf size={12} /></button>
+                                        <button onMouseDown={e => e.stopPropagation()} onClick={() => mappingExcelRef.current.click()} className="text-slate-400 hover:text-emerald-600 transition-colors" title="Anexar Planilha Excel"><FileExcel size={12} /></button>
+                                    </div>
+                                    <input type="file" accept="image/*" multiple ref={mappingPhotoRef} onChange={(e) => handleAttachment(e, 'mappingPhotos', 'photo')} className="hidden" />
+                                    <input type="file" accept="application/pdf" ref={mappingPdfRef} onChange={(e) => handleAttachment(e, 'mappingPdfs', 'pdf')} className="hidden" />
+                                    <input type="file" accept=".xlsx, .xls, .csv" ref={mappingExcelRef} onChange={(e) => handleAttachment(e, 'mappingExcels', 'excel')} className="hidden" />
+                                    
+                                    <AttachmentGallery 
+                                        photos={data.mappingPhotos} 
+                                        pdfs={data.mappingPdfs} 
+                                        excels={data.mappingExcels} 
+                                        onRemove={(type, idx) => handleRemoveAttachment(`mapping${type.charAt(0).toUpperCase() + type.slice(1)}`, idx)}
+                                        onOpenPhoto={(idx) => onOpenFullscreenPhoto(data.mappingPhotos, idx, `${data.title} - Mapeamento`)}
+                                        onOpenPdf={(idx) => onOpenFullscreenPdf(data.mappingPdfs, idx, `${data.title} - Mapeamento`)}
+                                        onOpenExcel={(ex) => onOpenFullscreenExcel(ex, id, 'mapping', `${data.title} - Mapeamento`)}
                                     />
                                 </div>
 
@@ -451,8 +534,9 @@
                                     </div>
                                 </div>
 
-                                <div className="space-y-1">
-                                    <div className="flex items-center justify-between">
+                                {/* SEÇÃO: FRAGILIDADES */}
+                                <div className="space-y-1 bg-white p-2 rounded-lg border border-slate-300 shadow-sm border-l-4 overflow-hidden" style={{borderLeftColor: data.risk === 'Alto' ? '#f43f5e' : '#94a3b8'}}>
+                                    <div className="flex items-center justify-between mb-1">
                                         <label className="text-[9px] font-black text-rose-600 uppercase tracking-wider">Fragilidades</label>
                                         <button onMouseDown={e => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onOpenFullscreenText(data.weakness, 'Fragilidades', data.title); }} className="p-1 hover:bg-rose-100 rounded text-rose-500">
                                             <Expand size={12} />
@@ -462,9 +546,29 @@
                                         value={data.weakness || ''} 
                                         onChange={(e) => updateNodeData(id, 'weakness', e.target.value)} 
                                         onMouseDown={e => e.stopPropagation()} 
-                                        className={`w-full bg-white text-xs p-2 rounded-lg outline-none resize-none min-h-[80px] border border-slate-300 shadow-sm focus:ring-2 focus:ring-[#7b1113]/20 focus:border-[#7b1113] transition-all text-slate-700 border-l-4 ${data.risk === 'Alto' ? 'border-l-rose-500' : 'border-l-slate-400'}`} 
+                                        className="w-full bg-slate-50 border border-slate-200 text-xs p-2 rounded outline-none resize-none min-h-[60px] text-slate-700 focus:ring-1 focus:ring-[#7b1113]/30 transition-all" 
                                         placeholder="Pontos críticos..." 
                                         onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
+                                    />
+
+                                    {/* Botões de Anexo (Fragilidades) */}
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <button onMouseDown={e => e.stopPropagation()} onClick={() => weaknessPhotoRef.current.click()} className="text-slate-400 hover:text-blue-600 transition-colors" title="Anexar Foto"><Camera size={12} /></button>
+                                        <button onMouseDown={e => e.stopPropagation()} onClick={() => weaknessPdfRef.current.click()} className="text-slate-400 hover:text-rose-600 transition-colors" title="Anexar PDF"><FilePdf size={12} /></button>
+                                        <button onMouseDown={e => e.stopPropagation()} onClick={() => weaknessExcelRef.current.click()} className="text-slate-400 hover:text-emerald-600 transition-colors" title="Anexar Planilha Excel"><FileExcel size={12} /></button>
+                                    </div>
+                                    <input type="file" accept="image/*" multiple ref={weaknessPhotoRef} onChange={(e) => handleAttachment(e, 'weaknessPhotos', 'photo')} className="hidden" />
+                                    <input type="file" accept="application/pdf" ref={weaknessPdfRef} onChange={(e) => handleAttachment(e, 'weaknessPdfs', 'pdf')} className="hidden" />
+                                    <input type="file" accept=".xlsx, .xls, .csv" ref={weaknessExcelRef} onChange={(e) => handleAttachment(e, 'weaknessExcels', 'excel')} className="hidden" />
+
+                                    <AttachmentGallery 
+                                        photos={data.weaknessPhotos} 
+                                        pdfs={data.weaknessPdfs} 
+                                        excels={data.weaknessExcels} 
+                                        onRemove={(type, idx) => handleRemoveAttachment(`weakness${type.charAt(0).toUpperCase() + type.slice(1)}`, idx)}
+                                        onOpenPhoto={(idx) => onOpenFullscreenPhoto(data.weaknessPhotos, idx, `${data.title} - Fragilidades`)}
+                                        onOpenPdf={(idx) => onOpenFullscreenPdf(data.weaknessPdfs, idx, `${data.title} - Fragilidades`)}
+                                        onOpenExcel={(ex) => onOpenFullscreenExcel(ex, id, 'weakness', `${data.title} - Fragilidades`)}
                                     />
                                 </div>
 
@@ -503,7 +607,7 @@
 
                         {!expanded && (
                         <div className={`px-3 py-1.5 text-[9px] font-black uppercase text-center rounded-b-2xl opacity-90 ${colors.text} flex items-center justify-center gap-2 border-t border-white/20`}>
-                            {data.customFields?.some(f => f.photos?.length > 0) && <Camera size={10} className="text-[#7b1113] animate-pulse" />}
+                            {(data.customFields?.some(f => f.photos?.length > 0) || data.mappingPhotos?.length > 0 || data.weaknessPhotos?.length > 0) && <Camera size={10} className="text-[#7b1113] animate-pulse" />}
                             {isEndNode ? 'PROCESSO CONCLUÍDO' : `${data.risk} Risco`}
                         </div>
                         )}
@@ -561,11 +665,12 @@
 
             // EFEITO: RENDERIZAÇÃO DO PDF COM PDF.JS (Evita bloqueios do Edge/Chrome)
             useEffect(() => {
-                if (fullscreenPdf && fullscreenPdf.pdf.data) {
+                if (fullscreenPdf && fullscreenPdf.pdfs && fullscreenPdf.pdfs[fullscreenPdf.currentIndex]) {
                     setIsRenderingPdf(true);
                     const loadPdf = async () => {
                         try {
-                            const base64Data = fullscreenPdf.pdf.data.split(',')[1];
+                            const currentPdf = fullscreenPdf.pdfs[fullscreenPdf.currentIndex];
+                            const base64Data = currentPdf.data.split(',')[1];
                             const binaryString = window.atob(base64Data);
                             const bytes = new Uint8Array(binaryString.length);
                             for (let i = 0; i < binaryString.length; i++) {
@@ -708,16 +813,26 @@
                         
                         setNodes(prev => prev.map(n => {
                             if (n.id === fullscreenExcel.nodeId) {
-                                const customFields = (n.data.customFields || []).map(f => {
-                                    if (f.id === fullscreenExcel.fieldId) {
-                                        const updatedExcels = (f.excels || []).map(ex => 
-                                            ex.id === fullscreenExcel.id ? { ...ex, data: updatedData } : ex
-                                        );
-                                        return { ...f, excels: updatedExcels };
-                                    }
-                                    return f;
-                                });
-                                return { ...n, data: { ...n.data, customFields } };
+                                // Atualizar os Excel raiz (Mapeamento ou Fragilidades)
+                                if (fullscreenExcel.fieldId === 'mapping' || fullscreenExcel.fieldId === 'weakness') {
+                                    const fieldName = fullscreenExcel.fieldId === 'mapping' ? 'mappingExcels' : 'weaknessExcels';
+                                    const updatedExcels = (n.data[fieldName] || []).map(ex => 
+                                        ex.id === fullscreenExcel.id ? { ...ex, data: updatedData } : ex
+                                    );
+                                    return { ...n, data: { ...n.data, [fieldName]: updatedExcels } };
+                                } else {
+                                    // Atualizar Excel dentro dos "Campos Customizados"
+                                    const customFields = (n.data.customFields || []).map(f => {
+                                        if (f.id === fullscreenExcel.fieldId) {
+                                            const updatedExcels = (f.excels || []).map(ex => 
+                                                ex.id === fullscreenExcel.id ? { ...ex, data: updatedData } : ex
+                                            );
+                                            return { ...f, excels: updatedExcels };
+                                        }
+                                        return f;
+                                    });
+                                    return { ...n, data: { ...n.data, customFields } };
+                                }
                             }
                             return n;
                         }));
@@ -1148,17 +1263,21 @@
                     <div className="fixed inset-0 z-[5000] bg-white/95 backdrop-blur-xl flex flex-col py-6 animate-in fade-in duration-300">
                         <div className="w-full px-10 flex items-center justify-between flex-shrink-0 z-20 mb-4">
                             <div className="flex flex-col">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Campo: {String(fullscreenPdf.label)}</span>
-                                <span className="text-sm font-black text-[#7b1113] flex items-center gap-2"><FilePdf size={16}/> {String(fullscreenPdf.pdf.name)}</span>
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Campo: {String(fullscreenPdf.label)} | PDF {fullscreenPdf.currentIndex + 1} de {fullscreenPdf.pdfs.length}</span>
+                                <span className="text-sm font-black text-[#7b1113] flex items-center gap-2"><FilePdf size={16}/> {String(fullscreenPdf.pdfs[fullscreenPdf.currentIndex].name)}</span>
                             </div>
                             <div className="flex items-center gap-3">
-                                <a href={fullscreenPdf.pdf.data} download={fullscreenPdf.pdf.name} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl font-bold transition-colors shadow-sm flex items-center gap-2 text-[11px] uppercase tracking-wider">
+                                <a href={fullscreenPdf.pdfs[fullscreenPdf.currentIndex].data} download={fullscreenPdf.pdfs[fullscreenPdf.currentIndex].name} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl font-bold transition-colors shadow-sm flex items-center gap-2 text-[11px] uppercase tracking-wider">
                                     <FileDown size={14}/> Baixar / Abrir Externamente
                                 </a>
                                 <button onClick={() => setFullscreenPdf(null)} className="bg-slate-100 hover:bg-rose-100 text-rose-500 p-2.5 rounded-xl transition-colors shadow-md"><X size={20} /></button>
                             </div>
                         </div>
-                        <div className="flex-1 w-full px-4 md:px-10 pb-4 overflow-hidden">
+                        <div className="flex-1 w-full flex items-center justify-center relative px-4 overflow-hidden mt-2">
+                            <button disabled={fullscreenPdf.currentIndex === 0} onClick={() => setFullscreenPdf(prev => ({...prev, currentIndex: prev.currentIndex - 1}))} className={`absolute left-4 md:left-10 z-20 p-4 rounded-full bg-white shadow-2xl transition-all ${fullscreenPdf.currentIndex === 0 ? 'opacity-20 pointer-events-none' : 'hover:scale-110 active:scale-95'}`} style={{ color: GRENA_COLOR }}>
+                                <ChevronLeft size={48} />
+                            </button>
+                            
                             <div className="w-full h-full relative rounded-xl overflow-hidden shadow-inner border border-slate-300 bg-slate-200/50">
                                 {isRenderingPdf && (
                                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-200/80 z-10 backdrop-blur-sm">
@@ -1169,6 +1288,10 @@
                                 <div className="w-full h-full overflow-y-auto flex flex-col items-center p-4 relative" ref={pdfContainerRef}>
                                 </div>
                             </div>
+
+                            <button disabled={fullscreenPdf.currentIndex === fullscreenPdf.pdfs.length - 1} onClick={() => setFullscreenPdf(prev => ({...prev, currentIndex: prev.currentIndex + 1}))} className={`absolute right-4 md:right-10 z-20 p-4 rounded-full bg-white shadow-2xl transition-all ${fullscreenPdf.currentIndex === fullscreenPdf.pdfs.length - 1 ? 'opacity-20 pointer-events-none' : 'hover:scale-110 active:scale-95'}`} style={{ color: GRENA_COLOR }}>
+                                <ChevronRight size={48} />
+                            </button>
                         </div>
                     </div>
                 )}
@@ -1275,23 +1398,23 @@
                 </svg>
 
                 {nodes.map(node => (
-                    <NodeItem 
-                        key={node.id} 
-                        node={node} 
-                        updateNodeData={updateNodeData} 
-                        deleteNode={deleteNode} 
-                        toggleExpand={toggleExpand} 
-                        draggingNodeId={draggingNodeId} 
-                        activeNodeId={activeNodeId} 
-                        handleMouseDown={handleMouseDown} 
-                        startConnection={startConnection}
-                        onOpenFullscreenPhoto={(photos, idx, title) => { setFullscreenPhotos(photos); setPhotoIndex(idx); setFullscreenTitle(title); }} 
-                        onOpenFullscreenText={openFullscreenText}
-                        onOpenFullscreenPdf={(pdf, label) => setFullscreenPdf({ pdf, label })}
-                        onOpenFullscreenExcel={(excel, nId, fId, label) => setFullscreenExcel({ ...excel, nodeId: nId, fieldId: fId, label })}
-                        addCustomField={addCustomField}
-                        updateCustomField={updateCustomField}
-                        removeCustomField={removeCustomField}
+                        <NodeItem 
+                            key={node.id} 
+                            node={node} 
+                            updateNodeData={updateNodeData} 
+                            deleteNode={deleteNode} 
+                            toggleExpand={toggleExpand} 
+                            draggingNodeId={draggingNodeId} 
+                            activeNodeId={activeNodeId} 
+                            handleMouseDown={handleMouseDown} 
+                            startConnection={startConnection}
+                            onOpenFullscreenPhoto={(photos, idx, title) => { setFullscreenPhotos(photos); setPhotoIndex(idx); setFullscreenTitle(title); }} 
+                            onOpenFullscreenText={openFullscreenText}
+                            onOpenFullscreenPdf={(pdfs, idx, label) => setFullscreenPdf({ pdfs, currentIndex: idx, label })}
+                            onOpenFullscreenExcel={(excel, nId, fId, label) => setFullscreenExcel({ ...excel, nodeId: nId, fieldId: fId, label })}
+                            addCustomField={addCustomField}
+                            updateCustomField={updateCustomField}
+                            removeCustomField={removeCustomField}
                         />
                     ))}
                     </div>
